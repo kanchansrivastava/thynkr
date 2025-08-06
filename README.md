@@ -1,1 +1,1 @@
-# thynkr
+# Thynkr

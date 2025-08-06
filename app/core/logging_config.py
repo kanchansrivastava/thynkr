@@ -1,7 +1,6 @@
 import logging
 from logging.config import dictConfig
 import os
-from logging.handlers import TimedRotatingFileHandler
 
 def setup_logging():
     log_dir = os.getenv("LOG_DIR", "logs")
