@@ -33,3 +33,7 @@ loguru==0.7.2
 
 # Optional: dotenv (for local env vars)
 python-dotenv==1.0.1
+anthropic
+pytest
+httpx
+typing-extensions

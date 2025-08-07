@@ -2,17 +2,22 @@
 from fastapi import FastAPI
 import uvicorn
 import os
-from dotenv import load_dotenv
 from app.core.logging_config import setup_logging
+from app.api import summarize
+from app.config import get_settings
 import logging
 
-load_dotenv()  # Load values from .env into environment
 
 
 setup_logging()
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
 
 app = FastAPI()
+
+app.include_router(summarize.router)
+
 
 @app.get("/")
 def home():

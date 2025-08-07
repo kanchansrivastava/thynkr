@@ -1,0 +1,5 @@
+Summarize the following in bullet points:
+
+"""
+{{ user_input }}
+"""
