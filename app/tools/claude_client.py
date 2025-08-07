@@ -1,6 +1,10 @@
-from anthropic import Anthropic
+from anthropic import Anthropic, APIStatusError
 from functools import lru_cache
+from fastapi import HTTPException
 from app.config import get_settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache()
@@ -9,17 +13,30 @@ def get_anthropic_client() -> Anthropic:
     return Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 
-
 def query_claude(prompt: str) -> str:
     settings = get_settings()
     client = get_anthropic_client()
-    response = client.messages.create(
-        model=settings.CLAUDE_MODEL,
-        max_tokens=settings.MAX_TOKENS,
-        temperature=settings.TEMPERATURE,
-        system=settings.SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response.content[0].text
+    
+    try:
+        response = client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=settings.MAX_TOKENS,
+            temperature=settings.TEMPERATURE,
+            system=settings.SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        # Token usage metadata
+        usage = response.usage
+        input_tokens = usage.input_tokens
+        output_tokens = usage.output_tokens
+
+        logger.info(f"Claude token usage - input: {input_tokens}, output: {output_tokens}")
+        return response.content[0].text
+
+    except APIStatusError as e:
+        logger.error(f"Claude API error: {e}")
+        raise HTTPException(status_code=500, detail="LLM service unavailable")
+
+    except Exception as e:
+        logger.exception("Unexpected error calling Claude")
+        raise HTTPException(status_code=500, detail="Internal error")
