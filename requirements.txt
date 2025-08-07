@@ -37,3 +37,5 @@ anthropic
 pytest
 httpx
 typing-extensions
+tiktoken
+pymupdf

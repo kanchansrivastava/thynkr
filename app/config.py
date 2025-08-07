@@ -1,8 +1,9 @@
 # app/config.py
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings
 
-from functools import lru_cache
 
 class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str
@@ -15,10 +16,13 @@ class Settings(BaseSettings):
     CLAUDE_MODEL: str = "claude-3-haiku-20240307"
     MAX_TOKENS: int = 512
     TEMPERATURE: float = 0.7
-    SYSTEM_PROMPT: str = "You are a fast, helpful assistant for development testing."
+    SYSTEM_PROMPT: str = (
+        "You are a fast, helpful assistant for development testing."
+    )
 
     class Config:
         env_file = ".env"  # Auto-load env vars from .env
+
 
 @lru_cache()
 def get_settings():

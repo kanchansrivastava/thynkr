@@ -1,8 +1,12 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from app.tools.claude_client import query_claude
 
+
 def test_claude_client():
-    with patch("app.tools.claude_client.get_anthropic_client") as mock_get_client:
+    with patch(
+        "app.tools.claude_client.get_anthropic_client"
+    ) as mock_get_client:
         # Create mock response content with .text attribute
         mock_text_content = MagicMock()
         mock_text_content.text = "fake response"
