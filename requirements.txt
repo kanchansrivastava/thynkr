@@ -1,41 +1,54 @@
-# FastAPI & ASGI Server
-fastapi==0.111.0
+# ---------- AI / ML ----------
+torch==2.3.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+sentence-transformers==2.2.2
+huggingface-hub==0.16.4        # Compatible with sentence-transformers==2.2.2
+faiss-cpu==1.8.0
+pgvector==0.2.5
+weaviate-client==3.25.0
+pinecone-client==3.2.2
+
+# ---------- Auth ----------
+authlib==1.3.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ---------- Document Processing ----------
+python-docx==1.1.0             # Word
+openpyxl==3.1.2                # Excel
+python-pptx==0.6.23            # PowerPoint
+pdfminer.six==20221105
+pymupdf==1.24.5
+
+# ---------- Task Queues / Workers ----------
+celery==5.3.4
+redis==5.0.4
+
+# ---------- FastAPI & Server ----------
+fastapi[all]==0.111.0
 uvicorn[standard]==0.30.1
 
-# Database: SQLAlchemy + PostgreSQL
+# ---------- Database ----------
 SQLAlchemy==2.0.30
 asyncpg==0.29.0
 alembic==1.13.1
 
-# Auth & Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-
-# Pydantic (for config & validation)
+# ---------- Config & Validation ----------
 pydantic==2.7.1
 pydantic-settings==2.2.1
+typing-extensions==4.12.2
 
-# OpenAI LLM APIs (if using OpenAI or Azure OpenAI)
+# ---------- LLM APIs ----------
 openai==1.33.0
+anthropic==0.23.1
+tiktoken==0.7.0
 
-# CORS for frontend/backend communication
-fastapi[all]==0.111.0
-
-# Redis (for caching or async task queues, optional)
-redis==5.0.4
-
-# Optional: background tasks and tools
+# ---------- Utilities ----------
 httpx==0.27.0
 tenacity==8.2.3
-
-# Optional: Logging
 loguru==0.7.2
-
-# Optional: dotenv (for local env vars)
 python-dotenv==1.0.1
-anthropic
-pytest
-httpx
-typing-extensions
-tiktoken
-pymupdf
+numpy==1.26.4
+
+# ---------- Testing ----------
+pytest==8.2.2
