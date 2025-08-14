@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     FAISS_INDEX_PATH: str = "data/faiss.index"
     FAISS_META_PATH: str = "data/faiss_meta.json"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    DATA_FILE: str = ""
 
     class Config:
         env_file = ".env"  # Auto-load env vars from .env

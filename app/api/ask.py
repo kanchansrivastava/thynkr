@@ -1,36 +1,48 @@
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from app.tools.claude_client import query_claude
 from app.tools.search import search_chunks
+from app.db import get_content_text
+
 
 router = APIRouter()
 
+
+class AskRequest(BaseModel):
+    content_id: str
+    query: str
+    top_k: int = 3
+    mode: str | None = None  # New: prompt mode
+
+
 @router.post("/ask")
-def ask(
-    content_id: str = Body(...),
-    query: str = Body(...),
-    top_k: int = Body(3)
-):
-    if not query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
+async def ask_content(request: AskRequest):
+    # Load content
+    text = get_content_text(request.content_id)
+    if not text:
+        raise HTTPException(status_code=404, detail="Content not found")
 
-    top_chunks = search_chunks(content_id=content_id, query=query, top_k=top_k)
-    
-    if not top_chunks:
-        raise HTTPException(status_code=404, detail="No relevant content found")
+    # Fetch top chunks
+    chunks = search_chunks(text, request.query, top_k=request.top_k)
 
-    context_text = "\n\n".join([chunk['text_chunk'] for chunk in top_chunks])
-    prompt = f"""
-    Use the following context to answer the question:
-    {context_text}
+    # Build prompt depending on mode
+    if request.mode == "eli5":
+        prompt = f"Explain like I'm 5:\n\n{request.query}\n\nContext:\n{''.join(chunks)}"
+    elif request.mode == "bullet":
+        prompt = f"Summarize in bullet points:\n\n{request.query}\n\nContext:\n{''.join(chunks)}"
+    elif request.mode == "pros_cons":
+        prompt = f"List pros and cons:\n\n{request.query}\n\nContext:\n{''.join(chunks)}"
+    else:
+        prompt = f"Answer the query:\n\n{request.query}\n\nContext:\n{''.join(chunks)}"
 
-    Question: {query}
-    """
+    # Call Claude
     answer = query_claude(prompt)
 
     return {
         "status": "success",
-        "content_id": content_id,
-        "query": query,
+        "content_id": request.content_id,
+        "query": request.query,
+        "mode": request.mode or "default",
         "answer": answer,
-        "used_chunks": len(top_chunks)
+        "used_chunks": len(chunks),
     }

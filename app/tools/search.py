@@ -3,8 +3,8 @@ import sqlite3
 import json
 import numpy as np
 from app.utils.embeddings import get_embedding
+from app.db import DB_FILE
 
-DB_FILE = "data.db"
 
 def search_chunks(content_id: str, query: str, top_k: int = 3):
     query_emb = np.array(get_embedding(query))
