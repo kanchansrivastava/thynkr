@@ -5,9 +5,10 @@ import os
 import uvicorn
 from fastapi import FastAPI
 
-from app.api import summarize, upload, search
+from app.api import summarize, upload, ask, content
 from app.config import get_settings
 from app.core.logging_config import setup_logging
+from app.db import init_db
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -15,10 +16,12 @@ settings = get_settings()
 
 
 app = FastAPI()
+init_db()
 
 app.include_router(summarize.router)
 app.include_router(upload.router)
-app.include_router(search.router)
+app.include_router(ask.router)
+app.include_router(content.router)
 
 
 @app.get("/")

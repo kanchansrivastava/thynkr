@@ -1,5 +1,6 @@
 from typing import List
 
+CHUNK_SIZE = 300
 
 def approximate_token_count(text: str) -> int:
     # Approximate 1 token ≈ 0.75 words (safe for Claude)
