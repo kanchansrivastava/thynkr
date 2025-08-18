@@ -1,6 +1,6 @@
 import json
 import logging
-from app.tools.claude_client import query_claude, ClaudeError
+from app.tools.claude_client import query_claude, plan_next_step
 from app.tools.tool_registry import TOOLS
 
 logging.basicConfig(
@@ -25,44 +25,113 @@ Example:
 {{"action": "summarize", "input": "Some text here"}}
 """
 
-def run_agent(user_input: str, max_loops: int = 3):
-    tool_descriptions = "\n".join(f"{name}: {meta['description']}" for name, meta in TOOLS.items())
-    loop_count = 0
-    current_input = user_input
 
-    while loop_count < max_loops:
-        loop_count += 1
-        logging.info(f"Loop {loop_count} | User input: {current_input}")
+# MAX_STEPS = 5
+
+# def run_agent(user_input: str):
+#     tool_descriptions = "\n".join(f"{name}: {meta['description']}" for name, meta in TOOLS.items())
+#     context = SYSTEM_PROMPT.format(tools=tool_descriptions)
+
+#     current_input = user_input
+#     steps = []
+
+#     for step in range(MAX_STEPS):
+#         prompt = f"{context}\n\nUser request: {current_input}"
+#         response = query_claude(prompt)
+
+#         try:
+#             action_data = json.loads(response)
+#         except json.JSONDecodeError:
+#             current_input = f"Invalid JSON: {response}. Please return valid JSON."
+#             continue
+
+#         action = action_data.get("action")
+#         action_input = action_data.get("input")
+
+#         if action == "final_answer":
+#             return {
+#                 "steps": steps,
+#                 "final_answer": action_input
+#             }
+
+#         if action not in TOOLS:
+#             current_input = f"Unknown tool '{action}'. Please choose a valid tool."
+#             continue
+
+#         if isinstance(action_input, dict):
+#             result = TOOLS[action]["function"](**action_input)
+#         else:
+#             result = TOOLS[action]["function"](action_input)
+
+#         steps.append({"action": action, "input": action_input, "result": result})
+
+#         current_input = f"Tool '{action}' returned: {result}"
+
+#     return {
+#         "steps": steps,
+#         "final_answer": "Max steps reached without final answer."
+#     }
+
+MAX_STEPS = 5
+
+def run_agent(initial_query):
+    steps = []
+    query = initial_query
+    last_action = None
+
+    for step_num in range(MAX_STEPS):
+        # 1. Ask the planner for the next step
+        plan = plan_next_step(query, steps)
+
+        action = plan.get("action")
+        action_input = plan.get("input")
+
+        # 2. Stop condition: Planner says "final"
+        if action == "final":
+            return {
+                "steps": steps,
+                "final_answer": action_input
+            }
+
+        # 3. Prevent infinite repetition of same action & input
+        if last_action == (action, action_input):
+            return {
+                "steps": steps,
+                "final_answer": f"Stopped — same step '{action}' repeated twice."
+            }
+        last_action = (action, action_input)
+
+        # 4. Validate input before tool call
+        if not action_input or len(action_input.strip()) < 5:
+            steps.append({
+                "action": action,
+                "input": action_input,
+                "result": "Skipped — insufficient input."
+            })
+            continue
+
+        # 5. Run the tool
         try:
-            prompt = SYSTEM_PROMPT.format(tools=tool_descriptions) + f"\n\nUser request: {current_input}"
-            claude_output = query_claude(prompt, max_tokens=200)
+            result = TOOLS[action]["function"](action_input)
+        except Exception as e:
+            result = f"Error: {e}"
 
-            logging.info(f"Claude raw output: {claude_output}")
+        # 6. Log the step
+        steps.append({
+            "action": action,
+            "input": action_input,
+            "result": result
+        })
 
-            # Try to parse JSON from Claude
-            try:
-                parsed = json.loads(claude_output)
-                action = parsed.get("action")
-                tool_input = parsed.get("input")
-            except json.JSONDecodeError:
-                logging.error("Claude did not return valid JSON. Stopping.")
-                break
+        # 7. Check if result should be the final answer
+        if isinstance(result, str) and "final answer" in result.lower():
+            return {
+                "steps": steps,
+                "final_answer": result
+            }
 
-            if action not in TOOLS:
-                logging.error(f"Invalid tool: {action}")
-                break
-
-            # Run selected tool
-            result = TOOLS[action]["function"](tool_input)
-            logging.info(f"Tool result: {result}")
-
-            # Decide if done or continue
-            if action != "ask":  # Simplified stopping rule
-                return result
-            else:
-                current_input = result
-        except ClaudeError as e:
-            logging.error(f"Claude error: {e}")
-            break
-
-    return {"status": "done", "data": None}
+    # 8. Safety stop
+    return {
+        "steps": steps,
+        "final_answer": "Max steps reached without final answer."
+    }
