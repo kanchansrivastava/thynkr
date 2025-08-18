@@ -1,3 +1,4 @@
+
 from app.tools.summarize import summarize_text
 from app.tools.ask import ask_about_content
 
@@ -6,7 +7,7 @@ TOOLS = {
         "description": "Summarize provided text",
         "function": summarize_text
     },
-    "ask": {
+    "ask_about_content": {
         "description": "Answer a question based on saved content",
         "function": ask_about_content
     },
