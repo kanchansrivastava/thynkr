@@ -1,141 +1,95 @@
-from app.tools.claude_client import query_claude
-from app.tools.tool_registry import TOOLS
+import json
+import logging
 
-import json, re, json5
+from app.tools.claude_client import parse_json_safely, plan_next_step
 
-MAX_STEPS = 5
-
-# -----------------------------
-# Helpers
-# -----------------------------
-def truncate(text, max_len=300):
-    if not isinstance(text, str):
-        text = str(text)
-    if len(text) <= max_len:
-        return text
-    return text[:max_len//2] + " ... " + text[-max_len//2:]
+logger = logging.getLogger(__name__)
 
 
-def parse_json_safely(raw_response: str):
+def normalize_tool_input(tool_input):
     """
-    Extract a JSON object from LLM response.
-    Only fallback to 'final' if parsing fails.
+    Normalize tool_input so downstream actions always receive a dict.
+    - If already dict → return as is
+    - If valid JSON string → load
+    - Else wrap as {"text": str(tool_input)}
     """
-    import json5
-    cleaned = raw_response.replace("\r", "").replace("\t", " ").strip()
-    match = re.search(r'\{.*\}', cleaned, re.DOTALL)
-    if match:
-        json_str = match.group(0)
+    if isinstance(tool_input, dict):
+        return tool_input
+    if isinstance(tool_input, str):
         try:
-            data = json5.loads(json_str)
-            # If JSON has required fields, return
-            if "action" in data and "input" in data:
-                return data
-        except Exception as e:
-            print(f"[parse_json_safely] JSON parsing failed: {e}")
-
-    # Fallback to final action with raw text
-    return {"action": "final", "input": cleaned}
+            return json.loads(tool_input)
+        except json.JSONDecodeError:
+            return {"text": tool_input}
+    return {"text": str(tool_input)}
 
 
+def run_agent(user_query: str, max_steps: int = 10):
+    """
+    Runs the agent loop for a given user query.
+    Handles LLM planning, tool execution, and final answer compilation.
 
-# -----------------------------
-# Plan next step
-# -----------------------------
-def plan_next_step(user_query, steps, tools, content_id="123"):
-    history_text = "\n".join([
-        f"Step {i+1}: Action={s['action']}, Result={truncate(s['result'])}"
-        for i, s in enumerate(steps)
-    ]) or "No steps taken yet."
+    Args:
+        user_query (str): The original user query.
+        max_steps (int): Max steps the agent will take before giving up.
 
-    tool_list = "\n".join([f"{name}: {meta['description']}" for name, meta in tools.items()])
-
-    prompt = f"""
-You are an AI assistant with access to the following tools:
-{tool_list}
-
-User query:
-{user_query}
-
-Steps so far:
-{history_text}
-
-Decide the next step.
-- If you have enough information, return:
-  {{
-    "action": "final",
-    "input": "<final answer>"
-  }}
-- If you need to ask about stored content, return:
-  {{
-    "action": "ask_about_content",
-    "input": {{
-        "content_id": "{content_id}",
-        "query": "<question related to the user query>"
-    }}
-  }}
-- For other tools, return:
-  {{
-    "action": "<tool name>",
-    "input": "<input text>"
-  }}
-
-Respond only as JSON.
-"""
-    raw_response = query_claude(prompt)
-    return parse_json_safely(raw_response)
-
-
-# -----------------------------
-# Run Agent Loop
-# -----------------------------
-def run_agent(user_query):
+    Returns:
+        str: The final answer from the agent.
+    """
     steps = []
-    current_input = user_query
-    last_action = None
 
-    for step_num in range(MAX_STEPS):
-        plan = plan_next_step(current_input, steps, TOOLS)
-        action = plan.get("action")
-        action_input = plan.get("input")
-
-        # Stop if final answer
-        if action == "final":
-            steps.append({"action": "final", "input": action_input, "result": action_input})
-            return {"steps": steps, "final_answer": action_input}
-
-        # Unknown tool
-        if action not in TOOLS:
-            return {"steps": steps, "final_answer": f"Unknown tool '{action}' — stopping loop."}
-
-        # Prevent repeated action+input
-        if last_action == (action, action_input):
-            return {"steps": steps, "final_answer": f"Repeated action '{action}' — stopping loop."}
-        last_action = (action, action_input)
-
-        # Skip empty or too short input
-        if not action_input or len(str(action_input).strip()) < 5:
-            steps.append({"action": action, "input": action_input, "result": "Skipped — insufficient input"})
-            continue
-
-        # Run the tool safely
+    for step_num in range(max_steps):
         try:
-            if isinstance(action_input, dict):
-                result = TOOLS[action]["function"](**action_input)
+            # Ask LLM what to do next
+            raw_step = plan_next_step(user_query, steps)
+
+            # Parse into dict (raw may be string or dict)
+            if isinstance(raw_step, str):
+                next_step = parse_json_safely(raw_step)
             else:
-                result = TOOLS[action]["function"](action_input)
+                next_step = raw_step
+
+            action = next_step.get("action")
+            tool_input = normalize_tool_input(next_step.get("input"))
+
+            # Handle actions
+            if action == "summarize":
+                text = tool_input.get("text") or tool_input.get("query")
+                if not text:
+                    raise ValueError("No text provided for summarization.")
+                # TODO: replace placeholder with summarize function call
+                summary = f"Summary of: {text[:200]}..."
+                steps.append({"action": "summarize", "result": summary})
+
+            elif action == "ask_about_content":
+                content_id = tool_input.get("content_id")
+                query_text = tool_input.get("query")
+                if not content_id or not query_text:
+                    logger.warning(
+                        f"Skipping ask_about_content: Missing content_id or query. Tool input: {tool_input}"
+                    )
+                    steps.append(
+                        {
+                            "action": "ask_about_content",
+                            "result": "Skipped: missing content_id or query",
+                        }
+                    )
+                    continue
+
+            elif action == "final":
+                final_answer = (
+                    tool_input.get("text")
+                    or tool_input.get("answer")
+                    or str(tool_input)
+                )
+                steps.append({"action": "final", "result": final_answer})
+                return final_answer
+
+            else:
+                logger.warning(f"Unknown action received: {action}")
+                steps.append({"action": "unknown", "result": str(tool_input)})
+
         except Exception as e:
-            result = f"Error: {e}"
+            logger.exception(f"Error in planning next step: {e}")
+            steps.append({"action": "error", "result": str(e)})
 
-        steps.append({"action": action, "input": action_input, "result": result})
-
-        # Prepare next input
-        if isinstance(result, dict) and "answer" in result:
-            current_input = result["answer"]
-        elif isinstance(result, str):
-            current_input = result
-        else:
-            current_input = str(result)
-
-    # Max steps reached
-    return {"steps": steps, "final_answer": "Max steps reached without final answer."}
+    return "Max steps reached without final answer."

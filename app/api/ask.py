@@ -1,5 +1,8 @@
+import traceback
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
 from app.tools.ask import ask_about_content
 
 router = APIRouter()
@@ -18,17 +21,18 @@ async def ask_content(request: AskRequest):
         result = ask_about_content(
             content_id=request.content_id,
             query=request.query,
-            top_k=request.top_k,
-            mode=request.mode
+            # top_k=request.top_k,
+            # mode=request.mode,
         )
         return {
             "status": "success",
             "content_id": request.content_id,
             "query": request.query,
             "mode": request.mode or "default",
-            **result
+            **result,
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")

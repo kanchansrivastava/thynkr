@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from app.agent_loop import run_agent
 from pydantic import BaseModel
 
+from app.agent_loop import run_agent
 
 router = APIRouter()
 

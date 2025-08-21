@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-from app.tools.claude_client import query_claude
+import pytest
+
+from app.tools.claude_client import parse_json_safely, query_claude
 
 
 def test_claude_client():
@@ -22,3 +24,22 @@ def test_claude_client():
 
         result = query_claude("Test input")
         assert result == "fake response"
+
+
+def test_parse_json_safely_valid_json():
+    raw = '{"action": "final", "input": "done"}'
+    data = parse_json_safely(raw)
+    assert data["action"] == "final"
+    assert data["input"] == "done"
+
+
+def test_parse_json_safely_json_in_text():
+    raw = 'Before text {"action":"summarize","input":"abc"} after text'
+    data = parse_json_safely(raw)
+    assert data["action"] == "summarize"
+    assert data["input"] == "abc"
+
+
+def test_parse_json_safely_invalid():
+    with pytest.raises(ValueError):
+        parse_json_safely("no JSON here")

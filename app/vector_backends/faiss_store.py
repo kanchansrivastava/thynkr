@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import json
 import os
-from typing import Any, Dict, List
-import numpy as np
-import faiss
-from app.config import settings
 from pathlib import Path
+from typing import Any, Dict, List
+
+import faiss
+import numpy as np
+
+from app.config import settings
 
 # We store normalized vectors → use Inner Product (cosine equivalence)
 _INDEX: faiss.Index | None = None

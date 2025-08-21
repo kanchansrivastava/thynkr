@@ -1,6 +1,8 @@
 from functools import lru_cache
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
 from app.config import settings
 
 

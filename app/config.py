@@ -1,6 +1,7 @@
 # app/config.py
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     FAISS_META_PATH: str = "data/faiss_meta.json"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     DATA_FILE: str = ""
+
+    SQLITE_DB_FILE: str = str(Path("data") / "data.db")
 
     class Config:
         env_file = ".env"  # Auto-load env vars from .env

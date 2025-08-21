@@ -1,14 +1,17 @@
 # app/main.py
 import logging
 import os
+import traceback
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from app.api import summarize, upload, ask, content, agent
+from app.api import agent, ask, content, summarize, upload
 from app.config import get_settings
 from app.core.logging_config import setup_logging
 from app.db import init_db
+from app.middleware.logging_middleware import LoggingMiddleware
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -17,6 +20,7 @@ settings = get_settings()
 
 app = FastAPI()
 init_db()
+app.add_middleware(LoggingMiddleware)
 
 app.include_router(summarize.router)
 app.include_router(upload.router)
@@ -25,10 +29,27 @@ app.include_router(content.router)
 app.include_router(agent.router)
 
 
-@app.get("/")
-def home():
-    logger.info("Root endpoint called")
-    return {"msg": "Hello! Welcome to Thynkr "}
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+# Catch all unhandled exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_trace = "".join(
+        traceback.format_exception(type(exc), exc, exc.__traceback__)
+    )
+    logger.error(
+        f"Unhandled error: {exc}\n"
+        f"URL: {request.url}\n"
+        f"Method: {request.method}\n"
+        f"Traceback:\n{error_trace}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."},
+    )
 
 
 if __name__ == "__main__":

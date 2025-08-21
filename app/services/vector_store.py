@@ -1,7 +1,8 @@
 from typing import Any, Dict, List
+
 from app.config import settings
-from app.vector_backends import faiss_store
 from app.utils.embeddings import get_embedding
+from app.vector_backends import faiss_store
 
 _BACKEND = settings.VECTOR_DB.lower()
 

@@ -1,12 +1,13 @@
 import uuid
 from pathlib import Path
+
 from fastapi import File, HTTPException, UploadFile
+
 from app.config import get_settings
 # from app.services.vector_store import store_text
 from app.db import save_content, save_embedding  # your DB functions
-from app.utils.embeddings import get_embedding
 from app.utils.chunker import chunk_text
-
+from app.utils.embeddings import get_embedding
 
 ALLOWED_EXTENSIONS = {".txt", ".md", ".html", ".pdf"}
 
@@ -24,7 +25,9 @@ async def handle_upload(file: UploadFile = File(...)):
     try:
         text = content_bytes.decode("utf-8")  # assume txt file
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Only UTF-8 text files are supported")
+        raise HTTPException(
+            status_code=400, detail="Only UTF-8 text files are supported"
+        )
 
     # Generate unique content ID and save raw content
     content_id = str(uuid.uuid4())
@@ -43,5 +46,5 @@ async def handle_upload(file: UploadFile = File(...)):
         "status": "success",
         "content_id": content_id,
         "filename": file.filename,
-        "chunks": len(chunks)
+        "chunks": len(chunks),
     }

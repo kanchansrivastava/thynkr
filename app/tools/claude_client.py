@@ -1,13 +1,11 @@
+import json
 import logging
+import re
 from functools import lru_cache
 from typing import Optional
 
 from anthropic import Anthropic, APIStatusError
 from fastapi import HTTPException
-
-
-import json
-import re
 
 from app.config import get_settings
 
@@ -16,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ClaudeError(Exception):
     """Custom exception for Claude API-related errors."""
+
     pass
 
 
@@ -35,25 +34,37 @@ def truncate(text, max_len=300):
         text = str(text)
     if len(text) <= max_len:
         return text
-    return text[:max_len//2] + " ... " + text[-max_len//2:]
+    return text[: max_len // 2] + " ... " + text[-max_len // 2 :]
 
 
-
-def parse_json_safely(raw_text):
+def parse_json_safely(raw_text: str):
     """
     Extract and parse JSON from raw LLM output.
-    Raises ValueError if it can't parse.
+    Handles control characters, unescaped newlines, etc.
     """
-    try:
-        # Try direct JSON first
-        return json.loads(raw_text)
-    except json.JSONDecodeError:
-        # Fallback: extract the first {...} block from text
-        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        raise ValueError(f"Could not parse JSON from: {raw_text}")
+    # Remove unwanted control characters
+    cleaned = raw_text.replace("\r", "").replace("\t", " ").strip()
 
+    # Try direct load
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: extract first {...} block
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if match:
+        json_str = match.group(0)
+        # Escape unescaped control characters inside string values
+        json_str = re.sub(r"[\x00-\x1f]+", " ", json_str)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Could not parse JSON after cleaning: {e}\nRaw: {json_str}"
+            )
+
+    raise ValueError(f"No JSON object found in raw_text:\n{raw_text}")
 
 
 def query_claude(
@@ -62,7 +73,7 @@ def query_claude(
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     system: Optional[str] = None,
-    raise_http: bool = True
+    raise_http: bool = True,
 ) -> str:
     """
     Query Claude API with the given prompt.
@@ -87,11 +98,15 @@ def query_claude(
 
     _model = model or settings.CLAUDE_MODEL
     _max_tokens = max_tokens or settings.MAX_TOKENS
-    _temperature = temperature if temperature is not None else settings.TEMPERATURE
+    _temperature = (
+        temperature if temperature is not None else settings.TEMPERATURE
+    )
     _system = system or settings.SYSTEM_PROMPT
 
     try:
-        logger.info(f"Claude Request | Model={_model} | MaxTokens={_max_tokens} | Temp={_temperature}")
+        logger.info(
+            f"Claude Request | Model={_model} | MaxTokens={_max_tokens} | Temp={_temperature}"
+        )
         logger.debug(f"Prompt:\n{prompt}")
 
         response = client.messages.create(
@@ -116,7 +131,9 @@ def query_claude(
     except APIStatusError as e:
         logger.error(f"Claude API error: {e}")
         if raise_http:
-            raise HTTPException(status_code=502, detail="LLM service unavailable")
+            raise HTTPException(
+                status_code=502, detail="LLM service unavailable"
+            )
         raise ClaudeError("LLM service unavailable") from e
 
     except Exception as e:
@@ -135,10 +152,15 @@ def plan_next_step(query, steps):
         "input": "<text or query for the tool>"
     }
     """
-    history_text = "\n".join([
-        f"Step {i+1}: Action={s['action']}, Result={truncate(s['result'])}"
-        for i, s in enumerate(steps)
-    ]) or "No steps taken yet."
+    history_text = (
+        "\n".join(
+            [
+                f"Step {i+1}: Action={s['action']}, Result={truncate(s['result'])}"
+                for i, s in enumerate(steps)
+            ]
+        )
+        or "No steps taken yet."
+    )
 
     prompt = f"""
 You are an AI research assistant with access to the following tools:
