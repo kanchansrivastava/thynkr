@@ -25,7 +25,7 @@ COPY requirements.txt .
 
 # Upgrade pip & install deps
 RUN pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt
 
 # -----------------
 # Stage 3: App
@@ -44,5 +44,13 @@ COPY . .
 # Expose FastAPI port
 EXPOSE 8000
 
+# Streamlit
+EXPOSE 8501 
+
 # Run FastAPI with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+COPY scripts/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["./start.sh"]
